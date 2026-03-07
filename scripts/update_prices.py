@@ -1,41 +1,33 @@
-name: Update flight prices
+import json
+from datetime import datetime
 
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "7,22,37,52 * * * *"
+routes = [
+    {"airline": "Pegasus", "from": "Köln", "to": "Sabiha Gökçen"},
+    {"airline": "Pegasus", "from": "Düsseldorf", "to": "Sabiha Gökçen"},
+    {"airline": "Pegasus", "from": "Rotterdam", "to": "Sabiha Gökçen"},
+    {"airline": "Pegasus", "from": "Amsterdam", "to": "Sabiha Gökçen"},
+    {"airline": "Pegasus", "from": "Dortmund", "to": "Sabiha Gökçen"},
+    {"airline": "Pegasus", "from": "Brüksel", "to": "Sabiha Gökçen"},
+    {"airline": "AJet", "from": "Köln", "to": "Sabiha Gökçen"},
+    {"airline": "AJet", "from": "Düsseldorf", "to": "Sabiha Gökçen"},
+    {"airline": "AJet", "from": "Rotterdam", "to": "Sabiha Gökçen"},
+    {"airline": "AJet", "from": "Amsterdam", "to": "Sabiha Gökçen"},
+    {"airline": "AJet", "from": "Dortmund", "to": "Sabiha Gökçen"},
+    {"airline": "AJet", "from": "Brüksel", "to": "Sabiha Gökçen"},
+]
 
-permissions:
-  contents: write
+prices = []
 
-jobs:
-  update-prices:
-    runs-on: ubuntu-latest
+for r in routes:
+    prices.append({
+        "airline": r["airline"],
+        "from": r["from"],
+        "to": r["to"],
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "price": 100
+    })
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
+with open("data/prices.json", "w") as f:
+    json.dump(prices, f, indent=2)
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m playwright install chromium
-
-      - name: Update prices
-        run: python scripts/update_prices.py
-
-      - name: Commit updated JSON
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/prices.json
-          git commit -m "Update prices.json" || echo "No changes to commit"
-          git push
+print("prices.json updated")
