@@ -28,7 +28,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          python -m playwright install chromium
 
       - name: Update prices
         run: |
