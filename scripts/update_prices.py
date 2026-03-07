@@ -5,16 +5,22 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 DATA_FILE = Path("data/prices.json")
-DEBUG_FILE = Path("debug_output.txt")
+ARTIFACTS_DIR = Path("artifacts")
+DEBUG_FILE = ARTIFACTS_DIR / "debug_output.txt"
+PEGASUS_PNG = ARTIFACTS_DIR / "pegasus_debug.png"
 
 CITY_TO_CODE = {
     "Köln": "CGN",
-    "Sabiha Gökçen": "SAW"
+    "Sabiha Gökçen": "SAW",
 }
 
+def ensure_artifacts_dir():
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
 def log_debug(message):
+    ensure_artifacts_dir()
     with DEBUG_FILE.open("a", encoding="utf-8") as f:
-        f.write(message + "\n")
+        f.write(str(message) + "\n")
 
 def load_data():
     return json.loads(DATA_FILE.read_text(encoding="utf-8"))
@@ -22,7 +28,7 @@ def load_data():
 def save_data(data):
     DATA_FILE.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8"
+        encoding="utf-8",
     )
 
 def parse_price(text):
@@ -48,16 +54,18 @@ def scrape_pegasus(origin_code, dest_code, date):
 
             # Zorla debug üret
             try:
-                page.screenshot(path="pegasus_debug.png", full_page=True)
-                log_debug("pegasus_debug.png created")
+                page.screenshot(path=str(PEGASUS_PNG), full_page=True)
+                log_debug(f"{PEGASUS_PNG} created")
             except Exception as e:
                 log_debug(f"Pegasus screenshot error: {e}")
 
             try:
                 html = page.content()
-                with open("debug_output.txt", "w", encoding="utf-8") as f:
-                    f.write(html)
-                log_debug("debug_output.txt created")
+                with DEBUG_FILE.open("a", encoding="utf-8") as f:
+                    f.write("\n\n===== HTML START =====\n")
+                    f.write(html[:20000])
+                    f.write("\n===== HTML END =====\n")
+                log_debug("HTML appended to debug_output.txt")
             except Exception as e:
                 log_debug(f"HTML write error: {e}")
 
@@ -85,15 +93,17 @@ def scrape_pegasus(origin_code, dest_code, date):
         except Exception as e:
             log_debug(f"Pegasus exception: {e}")
             try:
-                page.screenshot(path="pegasus_debug.png", full_page=True)
-            except Exception:
-                pass
+                page.screenshot(path=str(PEGASUS_PNG), full_page=True)
+            except Exception as e2:
+                log_debug(f"Pegasus exception screenshot failed: {e2}")
             return None
 
         finally:
             browser.close()
 
 def main():
+    ensure_artifacts_dir()
+
     if DEBUG_FILE.exists():
         DEBUG_FILE.unlink()
 
@@ -115,7 +125,7 @@ def main():
             pegasus = scrape_pegasus(
                 CITY_TO_CODE[origin],
                 CITY_TO_CODE[dest],
-                iso
+                iso,
             )
 
             pegasus_prices.append(pegasus if pegasus else 999)
