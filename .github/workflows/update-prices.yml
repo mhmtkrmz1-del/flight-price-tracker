@@ -44,6 +44,17 @@ jobs:
       - name: Update prices
         run: python scripts/update_prices.py
 
+      - name: Upload debug files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-files
+          path: |
+            pegasus_debug.png
+            ajet_debug.png
+            debug_output.txt
+          if-no-files-found: ignore
+
       - name: Commit updated JSON
         run: |
           git config user.name "github-actions[bot]"
