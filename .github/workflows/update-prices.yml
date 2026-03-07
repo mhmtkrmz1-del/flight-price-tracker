@@ -34,12 +34,13 @@ jobs:
         run: |
           python scripts/update_prices.py
 
-      - name: Show artifacts folder
+      - name: Create fallback debug file
         if: always()
         run: |
-          echo "Listing artifacts directory"
-          ls -la
-          ls -la artifacts || true
+          mkdir -p artifacts
+          echo "Workflow finished at $(date)" > artifacts/workflow_debug.txt
+          ls -la > artifacts/root_listing.txt
+          ls -la artifacts > artifacts/artifacts_listing.txt || true
 
       - name: Upload debug files
         if: always()
