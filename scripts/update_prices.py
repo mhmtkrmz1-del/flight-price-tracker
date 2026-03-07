@@ -44,13 +44,19 @@ def scrape_pegasus(origin_code, dest_code, date):
 
         try:
             page.goto(url, timeout=60000)
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(7000)
 
-            texts = page.locator("body").inner_text()
-            prices = re.findall(r"\€\s?\d+", texts)
+            text = page.locator("body").inner_text()
+
+            log_debug(text[:3000])
+
+            prices = re.findall(r"\€\s?\d+", text)
 
             if not prices:
-                page.screenshot(path="pegasus_debug.png", full_page=True)
+                try:
+                    page.screenshot(path="pegasus_debug.png", full_page=True)
+                except Exception:
+                    pass
                 log_debug("Pegasus price not found")
                 return None
 
@@ -58,7 +64,10 @@ def scrape_pegasus(origin_code, dest_code, date):
             values = [v for v in values if v]
 
             if not values:
-                page.screenshot(path="pegasus_debug.png", full_page=True)
+                try:
+                    page.screenshot(path="pegasus_debug.png", full_page=True)
+                except Exception:
+                    pass
                 log_debug("Pegasus values parsed empty")
                 return None
 
@@ -72,55 +81,6 @@ def scrape_pegasus(origin_code, dest_code, date):
             except Exception:
                 pass
             log_debug(f"Pegasus exception: {e}")
-            return None
-
-        finally:
-            browser.close()
-
-def scrape_ajet(origin, dest, date):
-    url = "https://ajet.com/en-nl/flights"
-    log_debug(f"AJet URL: {url}")
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-
-        try:
-            page.goto(url, timeout=60000)
-            page.wait_for_timeout(5000)
-
-            texts = page.locator("body").inner_text()
-            prices = re.findall(r"\€\s?\d+", texts)
-
-            if not prices:
-                try:
-                    page.screenshot(path="ajet_debug.png", full_page=True)
-                except Exception:
-                    pass
-                log_debug("AJet price not found")
-                return None
-
-            values = [parse_price(p) for p in prices]
-            values = [v for v in values if v]
-
-            if not values:
-                try:
-                    page.screenshot(path="ajet_debug.png", full_page=True)
-                except Exception:
-                    pass
-                log_debug("AJet values parsed empty")
-                return None
-
-            found = min(values)
-            log_debug(f"AJet found: {found}")
-            return found
-
-        except Exception as e:
-            try:
-                page.screenshot(path="ajet_debug.png", full_page=True)
-            except Exception:
-                pass
-            log_debug(f"AJet exception: {e}")
             return None
 
         finally:
@@ -151,12 +111,10 @@ def main():
                 iso
             )
 
-            ajet = scrape_ajet(origin, dest, iso)
-
             pegasus_prices.append(pegasus if pegasus else 999)
-            ajet_prices.append(ajet if ajet else 999)
+            ajet_prices.append(999)
 
-            log_debug(f"Result | Pegasus={pegasus} | AJet={ajet}")
+            log_debug(f"Result | Pegasus={pegasus} | AJet=SKIPPED")
 
         route["airlines"]["Pegasus"] = pegasus_prices
         route["airlines"]["AJet"] = ajet_prices
