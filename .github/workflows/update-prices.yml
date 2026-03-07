@@ -68,3 +68,11 @@ jobs:
           git fetch origin main
           git pull --rebase origin main
           git push --force-with-lease origin HEAD:main
+      - name: Upload debug files
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-files
+          path: |
+            debug_output.txt
+            pegasus_debug.png
+            ajet_debug.png
