@@ -34,6 +34,21 @@ jobs:
         run: |
           python scripts/update_prices.py
 
+      - name: Show artifacts folder
+        if: always()
+        run: |
+          echo "Listing artifacts directory"
+          ls -la
+          ls -la artifacts || true
+
+      - name: Upload debug files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-files
+          path: artifacts/**
+          if-no-files-found: warn
+
       - name: Commit updated JSON
         run: |
           git config user.name "github-actions[bot]"
@@ -45,13 +60,3 @@ jobs:
         run: |
           git pull --rebase
           git push
-
-      - name: Upload debug files
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-files
-          path: |
-            debug_output.txt
-            pegasus_debug.png
-            ajet_debug.png
-          if-no-files-found: ignore
