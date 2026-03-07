@@ -24,6 +24,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Sync with remote
+        run: |
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -45,5 +51,9 @@ jobs:
           git add data/prices.json
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "Update prices.json"
+
+      - name: Rebase and push
+        run: |
+          git fetch origin main
           git pull --rebase origin main
-          git push origin HEAD:main
+          git push --force-with-lease origin HEAD:main
