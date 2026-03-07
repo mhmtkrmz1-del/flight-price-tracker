@@ -46,17 +46,28 @@ def scrape_pegasus(origin_code, dest_code, date):
             page.goto(url, timeout=60000)
             page.wait_for_timeout(7000)
 
-            text = page.locator("body").inner_text()
+            # Zorla debug üret
+            try:
+                page.screenshot(path="pegasus_debug.png", full_page=True)
+                log_debug("pegasus_debug.png created")
+            except Exception as e:
+                log_debug(f"Pegasus screenshot error: {e}")
 
+            try:
+                html = page.content()
+                with open("debug_output.txt", "w", encoding="utf-8") as f:
+                    f.write(html)
+                log_debug("debug_output.txt created")
+            except Exception as e:
+                log_debug(f"HTML write error: {e}")
+
+            text = page.locator("body").inner_text()
+            log_debug("First 3000 chars of page text:")
             log_debug(text[:3000])
 
             prices = re.findall(r"\€\s?\d+", text)
 
             if not prices:
-                try:
-                    page.screenshot(path="pegasus_debug.png", full_page=True)
-                except Exception:
-                    pass
                 log_debug("Pegasus price not found")
                 return None
 
@@ -64,10 +75,6 @@ def scrape_pegasus(origin_code, dest_code, date):
             values = [v for v in values if v]
 
             if not values:
-                try:
-                    page.screenshot(path="pegasus_debug.png", full_page=True)
-                except Exception:
-                    pass
                 log_debug("Pegasus values parsed empty")
                 return None
 
@@ -76,11 +83,11 @@ def scrape_pegasus(origin_code, dest_code, date):
             return found
 
         except Exception as e:
+            log_debug(f"Pegasus exception: {e}")
             try:
                 page.screenshot(path="pegasus_debug.png", full_page=True)
             except Exception:
                 pass
-            log_debug(f"Pegasus exception: {e}")
             return None
 
         finally:
