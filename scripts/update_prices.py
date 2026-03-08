@@ -1,5 +1,4 @@
 import requests
-import json
 
 API_URL = "https://web.flypgs.com/pegasus/availability"
 
@@ -36,30 +35,9 @@ headers = {
 }
 
 response = requests.post(API_URL, json=payload, headers=headers, timeout=60)
-data = response.json()
 
-print(json.dumps(data)[:3000])
-
-try:
-    flights = data["departureRouteList"][0]["dailyFlightList"]
-
-    prices = []
-    for day in flights:
-        date = day["date"]
-        price = day["cheapestFare"]["amount"]
-        prices.append({
-            "date": date,
-            "price": price
-        })
-
-    cheapest = min(prices, key=lambda x: x["price"])
-
-    print("All prices:")
-    for p in prices:
-        print(p)
-
-    print("\nCHEAPEST FLIGHT:")
-    print(cheapest)
-
-except Exception as e:
-    print("Parsing error:", e)
+print("STATUS:", response.status_code)
+print("CONTENT-TYPE:", response.headers.get("content-type"))
+print("TEXT START:")
+print(response.text[:3000])
+print("TEXT END")
