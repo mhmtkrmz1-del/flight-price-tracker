@@ -1,231 +1,276 @@
-import fs from "fs/promises";
-import path from "path";
+"use client";
 
-async function getPriceData() {
-  const filePath = path.join(process.cwd(), "data", "prices.json");
-  const raw = await fs.readFile(filePath, "utf8");
-  return JSON.parse(raw);
+import { useEffect, useState } from "react";
+
+const routes = [
+  {
+    from: "Köln",
+    to: "Sabiha Gökçen",
+    fromCode: "CGN",
+    toCode: "SAW",
+    dates: [
+      "2026-07-11",
+      "2026-07-12",
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15",
+      "2026-07-16",
+    ],
+  },
+];
+
+function buildPayload(fromCode, toCode, date) {
+  return {
+    flightSearchList: [
+      {
+        departurePort: fromCode,
+        arrivalPort: toCode,
+        departureDate: date,
+      },
+    ],
+    adultCount: 1,
+    childCount: 0,
+    infantCount: 0,
+    currency: "EUR",
+    dateOption: 1,
+    bookingType: "BOOKING",
+    operationCode: "TK",
+    ffRedemption: false,
+    expatPnr: false,
+    personnelFlightSearch: false,
+    totalPoints: null,
+    affiliate: { id: null },
+  };
 }
 
-function buildSummaryRows(routes) {
-  return routes.map((route) => {
-    const pegasusPrices = route.airlines.Pegasus || [];
-    const ajetPrices = route.airlines.AJet || [];
-
-    const pegasusMin = Math.min(...pegasusPrices);
-    const ajetMin = Math.min(...ajetPrices);
-
-    const pegasusMinIndex = pegasusPrices.indexOf(pegasusMin);
-    const ajetMinIndex = ajetPrices.indexOf(ajetMin);
-
-    const pegasusDate = route.dates[pegasusMinIndex];
-    const ajetDate = route.dates[ajetMinIndex];
-
-    const bestAirline = pegasusMin <= ajetMin ? "Pegasus" : "AJet";
-    const bestDate = pegasusMin <= ajetMin ? pegasusDate : ajetDate;
-    const bestPrice = pegasusMin <= ajetMin ? pegasusMin : ajetMin;
-
-    return {
-      direction: route.direction,
-      from: route.from,
-      to: route.to,
-      pegasusDate,
-      pegasusPrice: pegasusMin,
-      ajetDate,
-      ajetPrice: ajetMin,
-      bestAirline,
-      bestDate,
-      bestPrice,
-    };
+function formatHumanDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
   });
 }
 
-function buildDetailRows(routes) {
-  return routes.flatMap((route) => [
-    {
-      airline: "Pegasus",
-      direction: route.direction,
-      from: route.from,
-      to: route.to,
-      dates: route.dates,
-      prices: route.airlines.Pegasus || [],
-    },
-    {
-      airline: "AJet",
-      direction: route.direction,
-      from: route.from,
-      to: route.to,
-      dates: route.dates,
-      prices: route.airlines.AJet || [],
-    },
-  ]);
-}
+export default function Page() {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [statusText, setStatusText] = useState("Hazır");
 
-export default async function Page() {
-  const data = await getPriceData();
-  const summaryRows = buildSummaryRows(data.routes || []);
-  const detailRows = buildDetailRows(data.routes || []);
+  async function fetchPegasusPrice(fromCode, toCode, date) {
+    const response = await fetch("https://web.flypgs.com/pegasus/availability", {
+      method: "POST",
+      headers: {
+        accept: "application/json, text/plain, */*",
+        "content-type": "application/json",
+        "x-platform": "web",
+        "x-version": "1.75.0",
+      },
+      body: JSON.stringify(buildPayload(fromCode, toCode, date)),
+    });
 
-  const pageStyle = {
-    background: "#f8fafc",
-    minHeight: "100vh",
-    fontFamily: "Arial, sans-serif",
-    padding: "32px 20px 60px",
-    color: "#0f172a",
-  };
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
-  const containerStyle = {
-    maxWidth: 1450,
-    margin: "0 auto",
-  };
+    const data = await response.json();
 
-  const cardStyle = {
-    background: "#ffffff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 24,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-  };
+    const routeList = data?.departureRouteList || [];
+    if (!routeList.length) return null;
 
-  const tableStyle = {
-    width: "100%",
-    borderCollapse: "collapse",
-    fontSize: 15,
-  };
+    const dailyFlightList = routeList[0]?.dailyFlightList || [];
+    if (!dailyFlightList.length) return null;
 
-  const thStyle = {
-    textAlign: "left",
-    padding: "12px 10px",
-    borderBottom: "1px solid #cbd5e1",
-    background: "#f1f5f9",
-    whiteSpace: "nowrap",
-  };
+    const matched = dailyFlightList.find((x) => x.date === date) || dailyFlightList[0];
+    const amount = matched?.cheapestFare?.amount;
 
-  const tdStyle = {
-    padding: "10px 10px",
-    borderBottom: "1px solid #e2e8f0",
-    whiteSpace: "nowrap",
-  };
+    return typeof amount === "number" ? amount : null;
+  }
+
+  async function runCheck() {
+    setLoading(true);
+    setStatusText("Fiyatlar kontrol ediliyor...");
+    const rows = [];
+
+    for (const route of routes) {
+      for (const date of route.dates) {
+        try {
+          const price = await fetchPegasusPrice(route.fromCode, route.toCode, date);
+
+          rows.push({
+            airline: "Pegasus",
+            from: route.from,
+            to: route.to,
+            date,
+            price: price ?? null,
+            ok: price !== null,
+            note: price !== null ? "Başarılı" : "Fiyat bulunamadı",
+          });
+        } catch (err) {
+          rows.push({
+            airline: "Pegasus",
+            from: route.from,
+            to: route.to,
+            date,
+            price: null,
+            ok: false,
+            note: `Hata: ${err.message}`,
+          });
+        }
+      }
+    }
+
+    setResults(rows);
+    setLoading(false);
+    setStatusText("Kontrol tamamlandı");
+  }
+
+  useEffect(() => {
+    runCheck();
+  }, []);
+
+  const validPrices = results.filter((r) => typeof r.price === "number");
+  const cheapest = validPrices.length
+    ? validPrices.reduce((min, item) => (item.price < min.price ? item : min), validPrices[0])
+    : null;
 
   return (
-    <main style={pageStyle}>
-      <div style={containerStyle}>
-        <h1 style={{ fontSize: 42, margin: "0 0 8px" }}>Uçuş Fiyat Takip Paneli</h1>
-        <p style={{ margin: "0 0 8px", color: "#475569", fontSize: 16 }}>
-          Üstte her rota için en ucuz tarih özeti, altta her hava yolu için tüm tarihlerdeki fiyatlar.
-        </p>
-        <p style={{ margin: "0 0 24px", color: "#64748b", fontSize: 14 }}>
-          Son güncelleme: {data.updatedAt || "Bilinmiyor"}
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f8fafc",
+        fontFamily: "Arial, sans-serif",
+        padding: 24,
+        color: "#0f172a",
+      }}
+    >
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <h1 style={{ fontSize: 40, marginBottom: 10 }}>Uçuş Fiyat Takip Paneli</h1>
+
+        <p style={{ color: "#475569", marginBottom: 8 }}>
+          Bu sürüm fiyatları GitHub sunucusundan değil, doğrudan tarayıcından çekmeyi dener.
         </p>
 
-        <section style={cardStyle}>
-          <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 24 }}>En Ucuz Tarih Özeti</h2>
+        <p style={{ color: "#475569", marginBottom: 24 }}>
+          Durum: <strong>{statusText}</strong>
+        </p>
+
+        <button
+          onClick={runCheck}
+          disabled={loading}
+          style={{
+            padding: "12px 18px",
+            borderRadius: 10,
+            border: "1px solid #cbd5e1",
+            background: loading ? "#e2e8f0" : "#ffffff",
+            cursor: loading ? "not-allowed" : "pointer",
+            marginBottom: 24,
+          }}
+        >
+          {loading ? "Kontrol ediliyor..." : "Yeniden kontrol et"}
+        </button>
+
+        <section
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 16,
+            padding: 20,
+            marginBottom: 24,
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>En Ucuz Bulunan Fiyat</h2>
+
+          {cheapest ? (
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 12,
+                background: "#fef9c3",
+                border: "1px solid #fde68a",
+                fontSize: 18,
+                fontWeight: "bold",
+              }}
+            >
+              {cheapest.from} → {cheapest.to} — {formatHumanDate(cheapest.date)} — €{cheapest.price}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 12,
+                background: "#fee2e2",
+                border: "1px solid #fecaca",
+              }}
+            >
+              Henüz fiyat alınamadı. Tarayıcı CORS veya Pegasus koruması engelliyor olabilir.
+            </div>
+          )}
+        </section>
+
+        <section
+          style={{
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 16,
+            padding: 20,
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Detaylı Sonuçlar</h2>
+
           <div style={{ overflowX: "auto" }}>
-            <table style={tableStyle}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={thStyle}>Yön</th>
-                  <th style={thStyle}>Nereden</th>
-                  <th style={thStyle}>Nereye</th>
-                  <th style={thStyle}>Pegasus en ucuz tarih</th>
-                  <th style={thStyle}>Pegasus fiyat</th>
-                  <th style={thStyle}>AJet en ucuz tarih</th>
-                  <th style={thStyle}>AJet fiyat</th>
-                  <th style={thStyle}>Genel en ucuz</th>
-                  <th style={thStyle}>Tarih</th>
-                  <th style={thStyle}>Fiyat</th>
+                  {["Hava yolu", "Nereden", "Nereye", "Tarih", "Fiyat", "Durum"].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        textAlign: "left",
+                        padding: 12,
+                        borderBottom: "1px solid #cbd5e1",
+                        background: "#f1f5f9",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {summaryRows.map((row, i) => (
-                  <tr key={i}>
-                    <td style={tdStyle}>{row.direction}</td>
-                    <td style={tdStyle}>{row.from}</td>
-                    <td style={tdStyle}>{row.to}</td>
-                    <td style={tdStyle}>{row.pegasusDate}</td>
-                    <td style={tdStyle}>€{row.pegasusPrice}</td>
-                    <td style={tdStyle}>{row.ajetDate}</td>
-                    <td style={tdStyle}>€{row.ajetPrice}</td>
-                    <td style={{ ...tdStyle, fontWeight: "bold", color: "#0f766e" }}>{row.bestAirline}</td>
-                    <td style={{ ...tdStyle, fontWeight: "bold" }}>{row.bestDate}</td>
-                    <td style={{ ...tdStyle, fontWeight: "bold", background: "#fef9c3" }}>€{row.bestPrice}</td>
-                  </tr>
-                ))}
+                {results.map((row, i) => {
+                  const isCheapest =
+                    cheapest &&
+                    row.from === cheapest.from &&
+                    row.to === cheapest.to &&
+                    row.date === cheapest.date &&
+                    row.price === cheapest.price;
+
+                  return (
+                    <tr key={i}>
+                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.airline}</td>
+                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.from}</td>
+                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.to}</td>
+                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>
+                        {formatHumanDate(row.date)}
+                      </td>
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom: "1px solid #e2e8f0",
+                          background: isCheapest ? "#fde047" : "transparent",
+                          fontWeight: isCheapest ? "bold" : "normal",
+                        }}
+                      >
+                        {row.price !== null ? `€${row.price}` : "-"}
+                      </td>
+                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.note}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </section>
-
-        <section style={cardStyle}>
-          <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 24 }}>Detaylı Fiyat Listesi</h2>
-          <p style={{ marginTop: 0, color: "#64748b" }}>
-            Her satır bir hava yolunu gösterir. En ucuz fiyat sarı ile vurgulanır.
-          </p>
-
-          {detailRows.map((row, rowIndex) => {
-            const minPrice = Math.min(...row.prices);
-
-            return (
-              <div
-                key={rowIndex}
-                style={{
-                  marginTop: 20,
-                  marginBottom: 28,
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 14,
-                  overflowX: "auto",
-                }}
-              >
-                <div
-                  style={{
-                    background: "#f8fafc",
-                    padding: "12px 14px",
-                    borderBottom: "1px solid #e2e8f0",
-                    fontWeight: "bold",
-                    fontSize: 16,
-                  }}
-                >
-                  {row.airline} — {row.direction} — {row.from} → {row.to}
-                </div>
-
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={thStyle}>Hava yolu</th>
-                      <th style={thStyle}>Nereden</th>
-                      <th style={thStyle}>Nereye</th>
-                      <th style={thStyle}>Tarih</th>
-                      <th style={thStyle}>Fiyat</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {row.dates.map((date, i) => {
-                      const isMin = row.prices[i] === minPrice;
-
-                      return (
-                        <tr key={i}>
-                          <td style={tdStyle}>{row.airline}</td>
-                          <td style={tdStyle}>{row.from}</td>
-                          <td style={tdStyle}>{row.to}</td>
-                          <td style={tdStyle}>{date}</td>
-                          <td
-                            style={{
-                              ...tdStyle,
-                              fontWeight: isMin ? "bold" : "normal",
-                              background: isMin ? "#fde047" : "transparent",
-                            }}
-                          >
-                            €{row.prices[i]}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
         </section>
       </div>
     </main>
