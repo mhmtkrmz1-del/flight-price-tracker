@@ -58,7 +58,7 @@ export default function Page() {
   const [statusText, setStatusText] = useState("Hazır");
 
   async function fetchPegasusPrice(fromCode, toCode, date) {
-    const response = await fetch("https://web.flypgs.com/pegasus/availability", {
+    const response = await fetch("/api/pegasus", {
       method: "POST",
       headers: {
         accept: "application/json, text/plain, */*",
