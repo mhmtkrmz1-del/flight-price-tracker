@@ -61,10 +61,7 @@ export default function Page() {
     const response = await fetch("/api/pegasus", {
       method: "POST",
       headers: {
-        accept: "application/json, text/plain, */*",
-        "content-type": "application/json",
-        "x-platform": "web",
-        "x-version": "1.75.0",
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(buildPayload(fromCode, toCode, date)),
     });
@@ -81,7 +78,9 @@ export default function Page() {
     const dailyFlightList = routeList[0]?.dailyFlightList || [];
     if (!dailyFlightList.length) return null;
 
-    const matched = dailyFlightList.find((x) => x.date === date) || dailyFlightList[0];
+    const matched =
+      dailyFlightList.find((x) => x.date === date) || dailyFlightList[0];
+
     const amount = matched?.cheapestFare?.amount;
 
     return typeof amount === "number" ? amount : null;
@@ -90,12 +89,17 @@ export default function Page() {
   async function runCheck() {
     setLoading(true);
     setStatusText("Fiyatlar kontrol ediliyor...");
+
     const rows = [];
 
     for (const route of routes) {
       for (const date of route.dates) {
         try {
-          const price = await fetchPegasusPrice(route.fromCode, route.toCode, date);
+          const price = await fetchPegasusPrice(
+            route.fromCode,
+            route.toCode,
+            date
+          );
 
           rows.push({
             airline: "Pegasus",
@@ -130,8 +134,11 @@ export default function Page() {
   }, []);
 
   const validPrices = results.filter((r) => typeof r.price === "number");
+
   const cheapest = validPrices.length
-    ? validPrices.reduce((min, item) => (item.price < min.price ? item : min), validPrices[0])
+    ? validPrices.reduce((min, item) =>
+        item.price < min.price ? item : min
+      )
     : null;
 
   return (
@@ -145,10 +152,12 @@ export default function Page() {
       }}
     >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <h1 style={{ fontSize: 40, marginBottom: 10 }}>Uçuş Fiyat Takip Paneli</h1>
+        <h1 style={{ fontSize: 40, marginBottom: 10 }}>
+          Uçuş Fiyat Takip Paneli
+        </h1>
 
         <p style={{ color: "#475569", marginBottom: 8 }}>
-          Bu sürüm fiyatları GitHub sunucusundan değil, doğrudan tarayıcından çekmeyi dener.
+          Pegasus fiyatları canlı olarak çekiliyor.
         </p>
 
         <p style={{ color: "#475569", marginBottom: 24 }}>
@@ -192,7 +201,8 @@ export default function Page() {
                 fontWeight: "bold",
               }}
             >
-              {cheapest.from} → {cheapest.to} — {formatHumanDate(cheapest.date)} — €{cheapest.price}
+              {cheapest.from} → {cheapest.to} —{" "}
+              {formatHumanDate(cheapest.date)} — €{cheapest.price}
             </div>
           ) : (
             <div
@@ -203,7 +213,7 @@ export default function Page() {
                 border: "1px solid #fecaca",
               }}
             >
-              Henüz fiyat alınamadı. Tarayıcı CORS veya Pegasus koruması engelliyor olabilir.
+              Henüz fiyat alınamadı.
             </div>
           )}
         </section>
@@ -222,21 +232,24 @@ export default function Page() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["Hava yolu", "Nereden", "Nereye", "Tarih", "Fiyat", "Durum"].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        textAlign: "left",
-                        padding: 12,
-                        borderBottom: "1px solid #cbd5e1",
-                        background: "#f1f5f9",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  {["Hava yolu", "Nereden", "Nereye", "Tarih", "Fiyat", "Durum"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        style={{
+                          textAlign: "left",
+                          padding: 12,
+                          borderBottom: "1px solid #cbd5e1",
+                          background: "#f1f5f9",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
+
               <tbody>
                 {results.map((row, i) => {
                   const isCheapest =
@@ -248,12 +261,42 @@ export default function Page() {
 
                   return (
                     <tr key={i}>
-                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.airline}</td>
-                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.from}</td>
-                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.to}</td>
-                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {row.airline}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {row.from}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {row.to}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
                         {formatHumanDate(row.date)}
                       </td>
+
                       <td
                         style={{
                           padding: 12,
@@ -264,7 +307,15 @@ export default function Page() {
                       >
                         {row.price !== null ? `€${row.price}` : "-"}
                       </td>
-                      <td style={{ padding: 12, borderBottom: "1px solid #e2e8f0" }}>{row.note}</td>
+
+                      <td
+                        style={{
+                          padding: 12,
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {row.note}
+                      </td>
                     </tr>
                   );
                 })}
